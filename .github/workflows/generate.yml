@@ -1,0 +1,83 @@
+name: Generate SnapGen Video
+
+run-name: Generate SnapGen video ${{ github.event.client_payload.request_id || github.run_id }}
+
+on:
+  repository_dispatch:
+    types: [create_video]
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: Video prompt
+        required: true
+        type: string
+      aspect:
+        description: Aspect ratio
+        required: true
+        default: 16:9
+        type: choice
+        options: [16:9, 9:16, 1:1]
+      resolution:
+        description: Video quality
+        required: true
+        default: 1080p
+        type: choice
+        options: [1080p, 720p, 480p]
+      duration:
+        description: Video duration
+        required: true
+        default: 8s
+        type: choice
+        options: [8s, 6s, 4s]
+
+concurrency:
+  group: snapgen-account
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PROMPT: ${{ github.event.client_payload.prompt || inputs.prompt }}
+      REQUEST_ID: ${{ github.event.client_payload.request_id || github.run_id }}
+      SNAPGEN_EMAIL: ${{ secrets.SNAPGEN_EMAIL }}
+      SNAPGEN_PASSWORD: ${{ secrets.SNAPGEN_PASSWORD }}
+      SNAPGEN_PROVIDER: veo
+      SNAPGEN_ASPECT: ${{ github.event.client_payload.aspect || inputs.aspect || '16:9' }}
+      SNAPGEN_RESOLUTION: ${{ github.event.client_payload.resolution || inputs.resolution || '1080p' }}
+      SNAPGEN_DURATION: ${{ github.event.client_payload.duration || inputs.duration || '8s' }}
+      SNAPGEN_HEADLESS: false
+      SNAPGEN_CAPTCHA_TIMEOUT_SECONDS: 180
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Playwright
+        run: npm install --no-audit --no-fund
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Generate video
+        run: xvfb-run -a node script.js
+
+      - name: Upload video result
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-result-${{ github.event.client_payload.request_id || github.run_id }}
+          path: |
+            video-result.json
+            video-url.txt
+            video.mp4
+          if-no-files-found: error
+          retention-days: 7
