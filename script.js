@@ -110,6 +110,23 @@ async function login(page) {
 
 async function openStudio(page) {
   await page.goto('https://snapgen.ai/?hard=true', { waitUntil: 'domcontentloaded' })
+  // Give the page a moment to render and potentially show blocking popups.
+  await page.waitForTimeout(3000)
+
+  // Try to close the Discord popup if present.
+  try {
+    await page.getByRole('button', { name: "Don't show again", exact: true }).click({ force: true, timeout: 3000 }).catch(() => null)
+  } catch (e) {
+    /* ignore */
+  }
+
+  // Try to close the API popup if present.
+  try {
+    await page.getByRole('button', { name: "Close and don't show again", exact: true }).click({ force: true, timeout: 3000 }).catch(() => null)
+  } catch (e) {
+    /* ignore */
+  }
+
   const studio = page.locator('textarea[placeholder*="Describe the video"]')
   await studio.waitFor({ timeout: 30_000 })
   const settingsVisible = provider === 'veo'
@@ -117,6 +134,18 @@ async function openStudio(page) {
     : page.locator('button[aria-label="landscape"]')
   if (!(await settingsVisible.count())) {
     await page.goto(`https://snapgen.ai/app/video-gen/${provider}`, { waitUntil: 'domcontentloaded' })
+    // Give the page a moment to render and potentially show blocking popups.
+    await page.waitForTimeout(3000)
+    try {
+      await page.getByRole('button', { name: "Don't show again", exact: true }).click({ force: true, timeout: 3000 }).catch(() => null)
+    } catch (e) {
+      /* ignore */
+    }
+    try {
+      await page.getByRole('button', { name: "Close and don't show again", exact: true }).click({ force: true, timeout: 3000 }).catch(() => null)
+    } catch (e) {
+      /* ignore */
+    }
     await studio.waitFor()
   }
 }
