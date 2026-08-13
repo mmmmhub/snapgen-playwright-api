@@ -3,7 +3,7 @@ const axios = require('axios');
 
 const API_KEY = '1d5b65b9-f2c8-4443-a849-80c9253817e8';
 const PAGE_URL = 'https://snapgen.ai';
-const SOLVER_BASE_URL = 'https://api.solvercf.com'; // الرابط القياسي المعتمد
+const SOLVER_BASE_URL = 'https://solvercf.com';// الرابط القياسي المعتمد
 
 async function solveTurnstile(page) {
     console.log("جاري البحث عن كود حماية Cloudflare...");
