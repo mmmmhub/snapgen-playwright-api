@@ -66,7 +66,7 @@ jobs:
         run: npm install --no-audit --no-fund
 
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: npx patchright install chromium
 
       - name: Generate video
         run: xvfb-run -a node script.js
