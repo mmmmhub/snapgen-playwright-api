@@ -1,9 +1,6 @@
 const fs = require('node:fs/promises')
 const path = require('node:path')
-const chromium = require('playwright-extra').chromium
-const StealthPlugin = require('puppeteer-extra-plugin-stealth')
-
-chromium.use(StealthPlugin())
+const { chromium } = require('patchright')
 
 const prompt = process.env.PROMPT?.trim()
 if (!prompt) throw new Error('PROMPT is required')
@@ -25,9 +22,8 @@ const outputDir = process.env.SNAPGEN_OUTPUT_DIR || process.cwd()
 ;(async () => {
   await fs.mkdir(outputDir, { recursive: true })
   const browser = await chromium.launch({
-    headless,
-    args: ['--disable-blink-features=AutomationControlled', '--ignore-certificate-errors'],
-    proxy: { server: '[http://scrapeops.headless_browser_mode](http://scrapeops.headless_browser_mode)=true:357f4596-7c52-409e-bef7-ef5370fdb683@proxy.scrapeops.io:5353' },
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
   })
   const context = await browser.newContext({ acceptDownloads: true })
   const page = await context.newPage()
