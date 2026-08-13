@@ -15,10 +15,17 @@
         <h1 class="text-2xl font-bold text-center text-blue-400 mb-6">🎬 صانع الفيديوهات الذكي (SnapGen)</h1>
         
         <div class="space-y-4">
+            <!-- Token (Smart Memory) -->
+            <div>
+                <label class="block text-sm font-medium mb-1 text-gray-300">مفتاح جيت هاب السري</label>
+                <input type="password" id="githubToken" class="w-full p-3 rounded-lg bg-gray-900 border border-gray-600 focus:border-blue-500 outline-none text-left" dir="ltr" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
+                <p class="text-xs text-green-400 mt-1">سيتم حفظ المفتاح في جهازك تلقائياً ولن تحتاجه مرة أخرى.</p>
+            </div>
+
             <!-- Prompt -->
             <div>
                 <label class="block text-sm font-medium mb-1 text-gray-300">وصف الفيديو (البرومبت)</label>
-                <textarea id="prompt" rows="3" class="w-full p-3 rounded-lg bg-gray-900 border border-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" placeholder="اكتب وصف الفيديو هنا بالتفصيل..."></textarea>
+                <textarea id="prompt" rows="3" class="w-full p-3 rounded-lg bg-gray-900 border border-gray-600 focus:border-blue-500 outline-none" placeholder="اكتب وصف الفيديو هنا بالتفصيل..."></textarea>
             </div>
 
             <!-- Settings -->
@@ -56,37 +63,47 @@
             </button>
 
             <!-- Status -->
-            <div id="status" class="hidden mt-4 p-4 rounded-lg bg-gray-900 border border-gray-700 text-center text-sm font-bold">
-                <!-- Status text will appear here -->
-            </div>
+            <div id="status" class="hidden mt-4 p-4 rounded-lg bg-gray-900 border border-gray-700 text-center text-sm font-bold"></div>
         </div>
     </div>
 
     <script>
+        // تحميل المفتاح المحفوظ أول ما الصفحة تفتح
+        document.addEventListener("DOMContentLoaded", () => {
+            const savedToken = localStorage.getItem("snapgen_token");
+            if(savedToken) {
+                document.getElementById('githubToken').value = savedToken;
+            }
+        });
+
         async function generateVideo() {
-            // المفتاح مدمج هنا مباشرة زي ما طلبت
-            const token = "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";
+            const token = document.getElementById('githubToken').value.trim();
             const prompt = document.getElementById('prompt').value.trim();
             const aspect = document.getElementById('aspect').value;
             const resolution = document.getElementById('resolution').value;
             const provider = document.getElementById('provider').value;
-            const duration = "8s"; // متثبتة على 8 ثواني في الخلفية
+            const duration = "8s";
             const statusDiv = document.getElementById('status');
             const btn = document.getElementById('generateBtn');
 
+            if (!token) {
+                alert("يرجى إدخال مفتاح جيت هاب أول مرة!");
+                return;
+            }
             if (!prompt) {
                 alert("يا ريس اكتب وصف الفيديو الأول!");
                 return;
             }
 
-            // Update UI
+            // حفظ المفتاح في المتصفح عشان متكتبوش تاني
+            localStorage.setItem("snapgen_token", token);
+
             btn.disabled = true;
             btn.innerHTML = "⏳ جاري إرسال الطلب...";
             btn.classList.replace('bg-blue-600', 'bg-gray-600');
             statusDiv.classList.remove('hidden');
             statusDiv.innerHTML = "<span class='text-yellow-400'>جاري الاتصال بالسيرفر...</span>";
 
-            // GitHub API Call
             const repoOwner = "mmmmhub"; 
             const repoName = "snapgen-playwright-api";
 
@@ -117,7 +134,7 @@
                     statusDiv.innerHTML = `<span class='text-red-400'>❌ فشل الإرسال: (${err.message})</span>`;
                 }
             } catch (error) {
-                statusDiv.innerHTML = `<span class='text-red-400'>❌ حدث خطأ في الاتصال بالإنترنت!</span>`;
+                statusDiv.innerHTML = `<span class='text-red-400'>❌ حدث خطأ في الاتصال!</span>`;
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = "🚀 بدء توليد الفيديو";
