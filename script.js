@@ -1,6 +1,9 @@
 const fs = require('node:fs/promises')
 const path = require('node:path')
-const { chromium } = require('playwright')
+const chromium = require('playwright-extra').chromium
+const StealthPlugin = require('puppeteer-extra-plugin-stealth')
+
+chromium.use(StealthPlugin())
 
 const prompt = process.env.PROMPT?.trim()
 if (!prompt) throw new Error('PROMPT is required')
@@ -21,7 +24,7 @@ const outputDir = process.env.SNAPGEN_OUTPUT_DIR || process.cwd()
 
 ;(async () => {
   await fs.mkdir(outputDir, { recursive: true })
-  const browser = await chromium.launch({ headless })
+  const browser = await chromium.launch({ headless, args: ['--disable-blink-features=AutomationControlled'] })
   const context = await browser.newContext({ acceptDownloads: true })
   const page = await context.newPage()
   page.setDefaultTimeout(45_000)
