@@ -145,7 +145,15 @@ async function disableNoticeOverlays(page) {
 }
 
 async function configure(page) {
-  await page.locator('textarea[placeholder*="Describe the video"]').fill(prompt, { force: true })
+  // Wait for the prompt input to appear and allow the page some time to stabilize before typing.
+  await page.waitForSelector('textarea[placeholder*="Describe the video"]', { timeout: 30_000 })
+  await page.waitForTimeout(2_000)
+
+  const promptField = page.locator('textarea[placeholder*="Describe the video"]')
+  await promptField.fill(prompt, { force: true })
+
+  // Give a small delay after filling the prompt before proceeding to click generate.
+  await page.waitForTimeout(2_000)
 
   if (provider === 'veo') {
     await chooseOption(page, settings.aspect)
