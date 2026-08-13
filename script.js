@@ -3,7 +3,6 @@ const axios = require('axios');
 
 const API_KEY = '1d5b65b9-f2c8-4443-a849-80c9253817e8';
 const PAGE_URL = 'https://snapgen.ai';
-const SOLVER_BASE_URL = 'https://solvercf.com';// الرابط القياسي المعتمد
 
 async function solveTurnstile(page) {
     console.log("جاري البحث عن كود حماية Cloudflare...");
@@ -16,35 +15,37 @@ async function solveTurnstile(page) {
     console.log(`تم العثور على Sitekey: ${sitekey}. جاري طلب الحل من SolverCF...`);
 
     try {
-        // 1. إنشاء المهمة (Create Task) بصيغة JSON
-        const createRes = await axios.post(`${SOLVER_BASE_URL}/createTask`, {
+        // 1. إنشاء المهمة بالرابط الصحيح والنوع الصحيح
+        const createRes = await axios.post('https://solvercf.com/token/extension/createTask', {
             clientKey: API_KEY,
             task: {
-                type: "TurnstileTaskProxyless",
-                websiteURL: PAGE_URL,
+                type: "TurnstileTask",
+                websiteUrl: PAGE_URL,
                 websiteKey: sitekey
             }
         });
         
+        // التوثيق يوضح أن errorId 0 يعني النجاح
         if (createRes.data.errorId !== 0) {
             console.log("فشل إنشاء طلب الحل:", createRes.data);
             return false;
         }
 
         const taskId = createRes.data.taskId;
-        console.log(`تم إرسال الطلب (رقم المهمة: ${taskId}). جاري الانتظار...`);
+        console.log(`تم إرسال الطلب (رقم المهمة: ${taskId}). جاري الانتظار للحصول على الحل...`);
 
-        // 2. سحب النتيجة (Get Task Result)
+        // 2. سحب النتيجة بالرابط الصحيح
         let solution = null;
         for (let i = 0; i < 20; i++) {
-            await new Promise(r => setTimeout(r, 3000)); // ننتظر 3 ثواني بين كل محاولة
+            await new Promise(r => setTimeout(r, 4000)); // ننتظر 4 ثواني بين كل محاولة
             
-            const resultRes = await axios.post(`${SOLVER_BASE_URL}/getTaskResult`, {
+            const resultRes = await axios.post('https://solvercf.com/token/extension/getTaskResult', {
                 clientKey: API_KEY,
                 taskId: taskId
             });
 
             if (resultRes.data.errorId === 0) {
+                // حالة 'ready' تعني أنه تم الحل
                 if (resultRes.data.status === 'ready') {
                     solution = resultRes.data.solution.token;
                     break;
@@ -70,7 +71,6 @@ async function solveTurnstile(page) {
             if (input) {
                 input.value = token;
             }
-            // استدعاء دالة التحقق الخاصة بكلاودفلير إن وجدت في الصفحة
             if (typeof turnstile !== 'undefined' && window.turnstileWidgetId) {
                 turnstile.getResponse(window.turnstileWidgetId);
             }
@@ -122,7 +122,8 @@ async function solveTurnstile(page) {
         await page.getByRole('button', { name: /Generate Video/i }).click();
 
         console.log("جاري انتظار توليد الفيديو (قد يستغرق بضع دقائق)...");
-        const videoElement = await page.waitForSelector('video', { timeout: 180000 }); 
+        // تحديث وقت الانتظار الأقصى إلى 4 دقائق
+        const videoElement = await page.waitForSelector('video', { timeout: 240000 }); 
         const videoUrl = await videoElement.getAttribute('src');
 
         console.log("✅ تم سحب رابط الفيديو بنجاح:", videoUrl);
@@ -133,3 +134,4 @@ async function solveTurnstile(page) {
         await browser.close();
     }
 })();
+
