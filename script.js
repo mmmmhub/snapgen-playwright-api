@@ -24,7 +24,11 @@ const outputDir = process.env.SNAPGEN_OUTPUT_DIR || process.cwd()
 
 ;(async () => {
   await fs.mkdir(outputDir, { recursive: true })
-  const browser = await chromium.launch({ headless, args: ['--disable-blink-features=AutomationControlled', '--ignore-certificate-errors'], proxy: { server: 'http://proxy.scrapeops.io:5353', username: 'scrapeops.headless_browse[...]' } })
+  const browser = await chromium.launch({
+    headless,
+    args: ['--disable-blink-features=AutomationControlled', '--ignore-certificate-errors'],
+    proxy: { server: '[http://scrapeops.headless_browser_mode](http://scrapeops.headless_browser_mode)=true:357f4596-7c52-409e-bef7-ef5370fdb683@proxy.scrapeops.io:5353' },
+  })
   const context = await browser.newContext({ acceptDownloads: true })
   const page = await context.newPage()
   page.setDefaultTimeout(45_000)
