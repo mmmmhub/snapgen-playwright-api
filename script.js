@@ -3,6 +3,7 @@ const axios = require('axios');
 
 const API_KEY = '1d5b65b9-f2c8-4443-a849-80c9253817e8';
 const PAGE_URL = 'https://snapgen.ai';
+const SOLVER_BASE_URL = 'https://api.solvercf.com'; // الرابط القياسي المعتمد
 
 async function solveTurnstile(page) {
     console.log("جاري البحث عن كود حماية Cloudflare...");
@@ -12,43 +13,66 @@ async function solveTurnstile(page) {
         return turnstileWidget ? turnstileWidget.getAttribute('data-sitekey') : '0x4AAAAAAAE-e-o6Q6yv3Zc7';
     });
 
-    console.log(`تم العثور على Sitekey: ${sitekey}. جاري طلب الحل...`);
+    console.log(`تم العثور على Sitekey: ${sitekey}. جاري طلب الحل من SolverCF...`);
 
     try {
-        const createUrl = `https://solvercf.com/in.php?key=${API_KEY}&method=turnstile&sitekey=${sitekey}&pageurl=${PAGE_URL}&json=1`;
-        const createRes = await axios.get(createUrl);
+        // 1. إنشاء المهمة (Create Task) بصيغة JSON
+        const createRes = await axios.post(`${SOLVER_BASE_URL}/createTask`, {
+            clientKey: API_KEY,
+            task: {
+                type: "TurnstileTaskProxyless",
+                websiteURL: PAGE_URL,
+                websiteKey: sitekey
+            }
+        });
         
-        if (createRes.data.status !== 1) {
+        if (createRes.data.errorId !== 0) {
             console.log("فشل إنشاء طلب الحل:", createRes.data);
             return false;
         }
 
-        const taskId = createRes.data.request;
-        console.log(`تم إرسال الطلب (رقم: ${taskId}). جاري الانتظار للحصول على الحل...`);
+        const taskId = createRes.data.taskId;
+        console.log(`تم إرسال الطلب (رقم المهمة: ${taskId}). جاري الانتظار...`);
 
+        // 2. سحب النتيجة (Get Task Result)
         let solution = null;
-        for (let i = 0; i < 15; i++) {
-            await new Promise(r => setTimeout(r, 4000));
-            const resultUrl = `https://solvercf.com/res.php?key=${API_KEY}&action=get&id=${taskId}&json=1`;
-            const resultRes = await axios.get(resultUrl);
+        for (let i = 0; i < 20; i++) {
+            await new Promise(r => setTimeout(r, 3000)); // ننتظر 3 ثواني بين كل محاولة
+            
+            const resultRes = await axios.post(`${SOLVER_BASE_URL}/getTaskResult`, {
+                clientKey: API_KEY,
+                taskId: taskId
+            });
 
-            if (resultRes.data.status === 1) {
-                solution = resultRes.data.request;
-                break;
+            if (resultRes.data.errorId === 0) {
+                if (resultRes.data.status === 'ready') {
+                    solution = resultRes.data.solution.token;
+                    break;
+                } else if (resultRes.data.status === 'failed') {
+                    console.log("فشل العامل في حل الكابتشا.");
+                    return false;
+                }
+            } else {
+                console.log("خطأ في جلب النتيجة:", resultRes.data);
+                return false;
             }
         }
 
         if (!solution) {
-            console.log("انتهى وقت الانتظار ولم يتم حل الكابتشا.");
+            console.log("انتهى وقت الانتظار ولم يتم تجهيز الحل.");
             return false;
         }
 
-        console.log("تم استلام الحل! جاري حقنه في الصفحة...");
+        console.log("✅ تم استلام الحل! جاري حقنه في الصفحة...");
         
         await page.evaluate((token) => {
             const input = document.querySelector('[name="cf-turnstile-response"]');
             if (input) {
                 input.value = token;
+            }
+            // استدعاء دالة التحقق الخاصة بكلاودفلير إن وجدت في الصفحة
+            if (typeof turnstile !== 'undefined' && window.turnstileWidgetId) {
+                turnstile.getResponse(window.turnstileWidgetId);
             }
         }, solution);
 
