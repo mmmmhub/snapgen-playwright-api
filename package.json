@@ -1,4 +1,10 @@
+{
+  "name": "snapgen-playwright-api",
+  "version": "1.0.0",
+  "description": "Auto generate video",
+  "main": "script.js",
   "dependencies": {
     "playwright": "^1.42.1",
     "axios": "^1.6.8"
   }
+}
