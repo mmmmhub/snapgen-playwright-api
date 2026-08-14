@@ -9,13 +9,12 @@ const PAGE_URL = 'https://snapgen.ai';
 const TURNSTILE_SITEKEY = '0x4AAAAAACDBydnKT0zYzh2H';
 
 // ============================================
-// 2. دالة حل Turnstile (قابلة لإعادة الاستخدام)
+// 2. دالة حل Turnstile
 // ============================================
 async function solveTurnstile(page, sitekey = TURNSTILE_SITEKEY) {
     console.log("🔍 جاري طلب حل Turnstile من SolverCF...");
     
     try {
-        // إنشاء المهمة
         const createRes = await axios.post('https://solvercf.com/token/extension/createTask', {
             clientKey: API_KEY,
             task: {
@@ -33,7 +32,6 @@ async function solveTurnstile(page, sitekey = TURNSTILE_SITEKEY) {
         const taskId = createRes.data.taskId;
         console.log(`✅ تم إرسال الطلب (رقم: ${taskId}). جاري الانتظار...`);
 
-        // سحب النتيجة (35 محاولة × 5 ثواني = 175 ثانية كحد أقصى)
         let solution = null;
         for (let i = 0; i < 35; i++) {
             await new Promise(r => setTimeout(r, 5000));
@@ -62,16 +60,15 @@ async function solveTurnstile(page, sitekey = TURNSTILE_SITEKEY) {
 
         console.log("✅ تم استلام الحل! جاري حقنه في الصفحة...");
         
-        // حقن التوكن في الصفحة
         await page.evaluate((token) => {
-            // الطريقة 1: حقل مخفي
+            // حقن التوكن في حقل الإدخال
             const input = document.querySelector('[name="cf-turnstile-response"]');
             if (input) {
                 input.value = token;
                 input.dispatchEvent(new Event('input', { bubbles: true }));
             }
             
-            // الطريقة 2: استخدام Turnstile API
+            // استخدام Turnstile API مباشرة
             if (typeof turnstile !== 'undefined') {
                 try {
                     const widget = document.querySelector('.cf-turnstile');
@@ -97,27 +94,35 @@ async function solveTurnstile(page, sitekey = TURNSTILE_SITEKEY) {
 }
 
 // ============================================
-// 3. دالة للتعامل مع Turnstile عند ظهوره
+// 3. دالة انتظار ظهور Turnstile وحله
 // ============================================
-async function handleTurnstileIfAppears(page) {
+async function handleTurnstileIfAppears(page, timeout = 15000) {
     try {
-        // انتظر ظهور Turnstile (iframe أو العنصر)
+        // انتظر ظهور Turnstile
         const turnstileFrame = await page.waitForSelector(
             'iframe[src*="challenges.cloudflare.com"], .cf-turnstile',
-            { timeout: 10000 }
+            { timeout: timeout }
         );
         
         if (turnstileFrame) {
-            console.log("🔄 تم اكتشاف Turnstile جديد، جاري حله...");
+            console.log("🔄 تم اكتشاف Turnstile، جاري حله...");
             const token = await solveTurnstile(page);
             if (token) {
-                console.log("✅ تم حل Turnstile الجديد بنجاح");
+                console.log("✅ تم حل Turnstile بنجاح");
+                
+                // انتظر اختفاء Turnstile
+                await page.waitForSelector(
+                    'iframe[src*="challenges.cloudflare.com"]',
+                    { state: 'hidden', timeout: 30000 }
+                );
+                console.log("✅ Turnstile اختفى من الصفحة");
                 return true;
             }
         }
         return false;
     } catch (e) {
         // لا يوجد Turnstile (مطلوب)
+        console.log("ℹ️ لم يتم اكتشاف Turnstile (قد يكون محلولاً بالفعل)");
         return true;
     }
 }
@@ -165,9 +170,9 @@ async function handleTurnstileIfAppears(page) {
 
         // ===== كتابة البرومبت =====
         console.log("✍️ جاري كتابة البرومبت...");
-        await page.getByPlaceholder("Describe the video you want to generate...").fill(
-            "A cinematic shot of a futuristic city, highly detailed, 8k resolution"
-        );
+        const prompt = "قضه تطير فوق الاهرامات";
+        await page.getByPlaceholder("Describe the video you want to generate...").fill(prompt);
+        console.log(`✅ تم كتابة: "${prompt}"`);
 
         // ===== اختيار الأبعاد والجودة =====
         console.log("📐 جاري اختيار الأبعاد والجودة...");
@@ -178,23 +183,88 @@ async function handleTurnstileIfAppears(page) {
             console.log("⚠️ لم يتم العثور على أزرار الأبعاد/الجودة.");
         }
 
-        // ===== الضغط على زر التوليد =====
-        console.log("🎬 الضغط على زر Generate Video...");
-        await page.getByRole('button', { name: /Generate Video/i }).click();
+        // ===== الضغط على زر التوليد (السهم) =====
+        console.log("🎬 البحث عن زر التوليد (السهم)...");
+        
+        // محاولة إيجاد الزر بعدة طرق
+        let generateButton = null;
+        
+        // الطريقة 1: البحث عن زر يحتوي على SVG (السهم)
+        try {
+            generateButton = await page.locator('button svg').first().locator('..');
+            await generateButton.click({ timeout: 5000 });
+            console.log("✅ تم الضغط على زر التوليد (عبر SVG)");
+        } catch (e) {
+            console.log("⚠️ فشل البحث عبر SVG، جرب طريقة أخرى...");
+        }
+        
+        // الطريقة 2: البحث عن زر به aria-label
+        if (!generateButton) {
+            try {
+                generateButton = await page.getByRole('button', { name: /generate|create|start|انشاء|توليد/i });
+                await generateButton.click({ timeout: 5000 });
+                console.log("✅ تم الضغط على زر التوليد (عبر aria-label)");
+            } catch (e) {
+                console.log("⚠️ فشل البحث عبر aria-label...");
+            }
+        }
+        
+        // الطريقة 3: البحث عن أي زر داخل منطقة الإدخال
+        if (!generateButton) {
+            try {
+                generateButton = await page.locator('form button, .input-area button, .generate-button').first();
+                await generateButton.click({ timeout: 5000 });
+                console.log("✅ تم الضغط على زر التوليد (عبر المحدد العام)");
+            } catch (e) {
+                console.log("❌ فشل العثور على زر التوليد");
+                throw new Error("لم يتم العثور على زر التوليد");
+            }
+        }
 
-        // ===== حل Turnstile الثاني (الذي يظهر بعد الضغط على الزر) =====
+        // ===== حل Turnstile الثاني (الذي يظهر بعد الضغط) =====
         console.log("🔄 انتظار ظهور Turnstile الثاني وحله...");
-        await handleTurnstileIfAppears(page);
+        await handleTurnstileIfAppears(page, 30000);
 
         // ===== انتظار توليد الفيديو =====
         console.log("⏳ جاري انتظار توليد الفيديو (قد يستغرق حتى 4 دقائق)...");
-        const videoElement = await page.waitForSelector('video', { timeout: 240000 }); 
+        
+        // انتظار ظهور عنصر الفيديو
+        const videoElement = await page.waitForSelector('video', { timeout: 240000 });
+        
+        // انتظار تحميل الفيديو
+        await page.waitForFunction(
+            () => {
+                const video = document.querySelector('video');
+                return video && video.readyState >= 3; // HAVE_FUTURE_DATA
+            },
+            { timeout: 60000 }
+        );
+        
         const videoUrl = await videoElement.getAttribute('src');
-
         console.log("✅ تم سحب رابط الفيديو بنجاح:", videoUrl);
+
+        // حفظ النتيجة في ملف
+        const fs = require('fs');
+        const result = {
+            timestamp: new Date().toISOString(),
+            prompt: prompt,
+            videoUrl: videoUrl,
+            status: 'success'
+        };
+        fs.writeFileSync('video-result.json', JSON.stringify(result, null, 2));
+        console.log("✅ تم حفظ النتيجة في video-result.json");
 
     } catch (error) {
         console.error("⚠️ حدث خطأ:", error.message);
+        
+        // حفظ الخطأ
+        const fs = require('fs');
+        const result = {
+            timestamp: new Date().toISOString(),
+            error: error.message,
+            status: 'failed'
+        };
+        fs.writeFileSync('video-result.json', JSON.stringify(result, null, 2));
     } finally {
         await browser.close();
         console.log("🔚 تم إغلاق المتصفح.");
